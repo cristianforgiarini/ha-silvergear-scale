@@ -115,12 +115,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = SilvergearScaleCoordinator(hass, address)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    if not await coordinator.async_connect():
-        _LOGGER.info(
-            "La báscula %s no está disponible al arrancar; se conectará "
-            "automáticamente en cuanto se detecte un anuncio suyo",
-            address,
-        )
+    # No bloqueamos aquí con "await": si la báscula está apagada,
+    # async_connect() puede tardar bastante (9 reintentos con backoff en
+    # bleak_retry_connector), y eso retrasaría el arranque de TODA la
+    # instancia de HA, no solo esta integración. Lo lanzamos en segundo
+    # plano; el sensor sale como "no disponible" hasta que conecte.
+    hass.async_create_task(
+        coordinator.async_connect(), f"{DOMAIN}_initial_connect_{address}"
+    )
 
     @callback
     def _on_bluetooth_update(_service_info, _change) -> None:
