@@ -28,7 +28,7 @@ WEIGHT_LENGTH = 3
 # CRC16 estándar probado) — por eso se guardan como paquetes fijos en vez de
 # calcularse dinámicamente. Confirmado que son reutilizables entre conexiones
 # distintas a la de la captura original.
-# Unidades pendientes de capturar: oz, lb(oz).
+# oz y lb(oz) no se soportan a propósito (no interesaban para este uso).
 UNIT_WRITE_COMMANDS: dict[str, bytes] = {
     "g": bytes.fromhex("ac4002000000000000000000000000000000d2d4"),
     "ml": bytes.fromhex("ac4002010000000000000000000000000000d2d5"),

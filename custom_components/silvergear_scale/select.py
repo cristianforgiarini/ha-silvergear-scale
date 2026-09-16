@@ -23,12 +23,19 @@ async def async_setup_entry(
 class SilvergearScaleUnitSelect(SelectEntity):
     """Cambia la unidad mostrada en la báscula (g / ml / ml(m)).
 
-    OJO: solo hemos capturado y confirmado estas 3 unidades (faltan oz y
-    lb-oz). Además "ml" no mide volumen de verdad: la báscula asume
-    densidad 1 y reetiqueta el mismo valor crudo en gramos, así que el
-    sensor de peso principal se queda siempre en gramos independientemente
-    de lo que elijas aquí — esto solo cambia lo que muestra la pantalla
-    física de la báscula.
+    Solo se soportan g/ml/ml(m) (oz y lb-oz se dejan fuera a propósito).
+    "ml" no mide volumen de verdad: la báscula asume densidad 1 y
+    reetiqueta el mismo valor crudo en gramos, así que el sensor de peso
+    principal se queda siempre en gramos independientemente de lo que
+    elijas aquí — esto solo cambia lo que muestra la pantalla física de
+    la báscula.
+
+    Limitación conocida: si seleccionas "ml(m)" el comando se manda bien
+    y la báscula cambia de pantalla, pero current_option se quedará en
+    None ("desconocido") en vez de reflejar "ml(m)", porque el botón
+    físico de la báscula no llega a esa unidad (parece exclusiva de la
+    app) y no hemos podido capturar con qué byte la anuncia en las
+    notificaciones de peso.
     """
 
     _attr_has_entity_name = True

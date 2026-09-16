@@ -43,5 +43,13 @@ Copia `custom_components/silvergear_scale/` dentro de tu carpeta
 
 ## Estado
 
-Funcional para lectura de peso en gramos. Sin explorar: characteristic de
-escritura (`0xFFB1`) y el resto de unidades soportadas por la báscula.
+- Sensor de peso en gramos: funcional.
+- Entidad `select` para cambiar la unidad mostrada en la báscula (`g`,
+  `ml`, `ml(m)`), usando comandos capturados por HCI snoop en la
+  característica `0xFFB1`: funcional.
+- `oz` y `lb(oz)` no se soportan, a propósito (no interesaban para este
+  uso; si hicieran falta, se capturarían con el mismo método).
+- Limitación conocida: el estado "actual" de la entidad `select` no se
+  refleja para `ml(m)` (sale como desconocido), porque esa unidad solo
+  se llega a poner desde la app y no se pudo capturar el byte con el
+  que la báscula la anuncia en sus notificaciones de peso.
