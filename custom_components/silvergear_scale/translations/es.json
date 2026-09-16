@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "confirm": {
+        "title": "Añadir báscula Silvergear",
+        "description": "¿Quieres añadir la báscula \"{name}\"?"
+      },
+      "user": {
+        "title": "Añadir báscula Silvergear manualmente",
+        "description": "Introduce la dirección MAC de la báscula ({hint}).",
+        "data": {
+          "address": "Dirección MAC"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Esta báscula ya está configurada"
+    }
+  }
+}
