@@ -3,14 +3,21 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from datetime import timedelta
 
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import CHAR_NOTIFY_UUID, DOMAIN, PACKET_HEADER, WEIGHT_LENGTH, WEIGHT_OFFSET
+
+# Reintento de respaldo: no depende de que llegue un anuncio BLE justo a
+# tiempo, por si el callback de descubrimiento o el de desconexión de Bleak
+# se retrasan o no llegan a disparar.
+_RECONNECT_INTERVAL = timedelta(seconds=30)
 
 PLATFORMS = ["sensor"]
 _LOGGER = logging.getLogger(__name__)
@@ -115,9 +122,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             address,
         )
 
-    async def _on_bluetooth_update(_service_info, _change) -> None:
+    @callback
+    def _on_bluetooth_update(_service_info, _change) -> None:
+        # OJO: este callback lo invoca HA de forma síncrona. Si lo
+        # declaramos como "async def" nunca se ejecuta de verdad (solo se
+        # crea la corutina y se descarta) — por eso antes no reconectaba.
         if coordinator.client is None:
-            await coordinator.async_connect()
+            hass.async_create_task(coordinator.async_connect())
 
     entry.async_on_unload(
         bluetooth.async_register_callback(
@@ -126,6 +137,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             {"address": address},
             bluetooth.BluetoothScanningMode.PASSIVE,
         )
+    )
+
+    @callback
+    def _on_unavailable(_service_info) -> None:
+        _LOGGER.debug("Báscula %s ya no se ve (unavailable)", address)
+        coordinator.client = None
+        coordinator._notify_listeners()  # refresca "available" en la entidad
+
+    entry.async_on_unload(
+        bluetooth.async_track_unavailable(hass, _on_unavailable, address, connectable=True)
+    )
+
+    async def _periodic_reconnect(_now) -> None:
+        if coordinator.client is None:
+            await coordinator.async_connect()
+
+    entry.async_on_unload(
+        async_track_time_interval(hass, _periodic_reconnect, _RECONNECT_INTERVAL)
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
