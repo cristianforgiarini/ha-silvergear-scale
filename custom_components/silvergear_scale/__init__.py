@@ -12,14 +12,22 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CHAR_NOTIFY_UUID, DOMAIN, PACKET_HEADER, WEIGHT_LENGTH, WEIGHT_OFFSET
+from .const import (
+    CHAR_NOTIFY_UUID,
+    CHAR_WRITE_UUID,
+    DOMAIN,
+    PACKET_HEADER,
+    UNIT_WRITE_COMMANDS,
+    WEIGHT_LENGTH,
+    WEIGHT_OFFSET,
+)
 
 # Reintento de respaldo: no depende de que llegue un anuncio BLE justo a
 # tiempo, por si el callback de descubrimiento o el de desconexión de Bleak
 # se retrasan o no llegan a disparar.
 _RECONNECT_INTERVAL = timedelta(seconds=30)
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "select"]
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -96,6 +104,25 @@ class SilvergearScaleCoordinator:
 
         self.client = client
         _LOGGER.debug("Conectado y suscrito a notificaciones de %s", self.address)
+        return True
+
+    async def async_set_unit(self, unit: str) -> bool:
+        """Manda el comando de cambio de unidad capturado por HCI snoop."""
+        if unit not in UNIT_WRITE_COMMANDS:
+            _LOGGER.warning("Unidad '%s' no soportada; no se manda nada", unit)
+            return False
+        if self.client is None or not self.client.is_connected:
+            _LOGGER.warning(
+                "No se puede cambiar de unidad: báscula %s no conectada", self.address
+            )
+            return False
+        try:
+            await self.client.write_gatt_char(CHAR_WRITE_UUID, UNIT_WRITE_COMMANDS[unit])
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Fallo al mandar el comando de unidad '%s' a %s: %s", unit, self.address, err
+            )
+            return False
         return True
 
     async def async_disconnect(self) -> None:
