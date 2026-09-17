@@ -48,14 +48,22 @@ Copia `custom_components/silvergear_scale/` dentro de tu carpeta
   `ml`, `ml(m)`), usando comandos capturados por HCI snoop en la
   característica `0xFFB1`: funcional.
 - `binary_sensor` de sobrecarga (>5kg): funcional. El byte 2 del paquete
-  (antes tratado como parte fija de la cabecera) es en realidad el tipo
-  de mensaje: `0x01`=peso normal, `0x00`=error/sobrecarga (confirmado con
-  una sola muestra real). El sensor de peso pasa a "no disponible"
-  mientras dure la sobrecarga, ya que el valor que llega en ese tipo de
-  paquete no es un peso fiable.
-- `oz` y `lb(oz)` no se soportan, a propósito (no interesaban para este
-  uso; si hicieran falta, se capturarían con el mismo método).
-- Limitación conocida: el estado "actual" de la entidad `select` no se
-  refleja para `ml(m)` (sale como desconocido), porque esa unidad solo
-  se llega a poner desde la app y no se pudo capturar el byte con el
-  que la báscula la anuncia en sus notificaciones de peso.
+  es el tipo de payload (`0x01`=número simple, `0x00`=formato especial).
+  Importante: `0x00` NO es exclusivo de la sobrecarga — la unidad
+  compuesta `lb:oz` también lo usa, así que se distingue mirando además
+  el byte de unidad (ver `SPECIAL_NON_OVERLOAD_UNIT_CODES` en
+  `const.py`). Sigue habiendo una sola muestra real de sobrecarga, así
+  que no se descarta que aparezcan más falsos positivos con otros casos
+  aún no vistos. El sensor de peso pasa a "no disponible" solo durante
+  una sobrecarga real.
+- Mapeo de unidades (byte 3) confirmado por captura real: `g`=`0x00`,
+  `ml`=`0x10`, `lb:oz`=`0x20`, `ml(m)`=`0x50`, `fl'oz`=`0x60`,
+  `fl'oz(m)`=`0x70`.
+- `oz` y `lb(oz)` no se ofrecen como opción seleccionable en el `select`
+  de HA, a propósito (no interesaban para este uso), aunque si se
+  seleccionan con el botón físico de la báscula ya no se confunden con
+  una sobrecarga.
+- Limitación conocida: `ml(m)`, `lb:oz`, `fl'oz` y `fl'oz(m)` solo se
+  alcanzan con el botón físico de la báscula, no desde el `select` de
+  HA (que solo ofrece `g`/`ml`/`ml(m)`, las únicas unidades cuyo comando
+  de escritura se ha capturado).

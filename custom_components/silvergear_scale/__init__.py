@@ -18,8 +18,9 @@ from .const import (
     DOMAIN,
     HEADER_PREFIX,
     MSG_TYPE_OFFSET,
-    MSG_TYPE_OVERLOAD,
+    MSG_TYPE_SPECIAL,
     MSG_TYPE_WEIGHT,
+    SPECIAL_NON_OVERLOAD_UNIT_CODES,
     UNIT_WRITE_COMMANDS,
     WEIGHT_LENGTH,
     WEIGHT_OFFSET,
@@ -70,11 +71,27 @@ class SilvergearScaleCoordinator:
             return
 
         msg_type = data[MSG_TYPE_OFFSET]
+        unit_byte = data[3]
         raw_value = int.from_bytes(
             data[WEIGHT_OFFSET : WEIGHT_OFFSET + WEIGHT_LENGTH], byteorder="big"
         )
 
-        if msg_type == MSG_TYPE_OVERLOAD:
+        if msg_type == MSG_TYPE_SPECIAL:
+            if unit_byte in SPECIAL_NON_OVERLOAD_UNIT_CODES:
+                # Formato especial pero NO sobrecarga (p. ej. lb:oz, que no
+                # cabe en un único número continuo). No sabemos parsear su
+                # valor todavía, así que dejamos el peso como estaba y no
+                # marcamos sobrecarga.
+                _LOGGER.debug(
+                    "Unidad de formato especial (no sobrecarga) en %s: %s",
+                    self.address,
+                    data.hex(),
+                )
+                self.overloaded = False
+                self.unit_raw = unit_byte
+                self._notify_listeners()
+                return
+
             # El valor de peso en este tipo de paquete no es fiable (parece
             # el último crudo del sensor antes de saturar), así que no
             # actualizamos weight_grams: se queda "no disponible".
@@ -96,7 +113,7 @@ class SilvergearScaleCoordinator:
             return
 
         self.overloaded = False
-        self.unit_raw = data[3]
+        self.unit_raw = unit_byte
         self.weight_grams = raw_value / 1000
         self._notify_listeners()
 

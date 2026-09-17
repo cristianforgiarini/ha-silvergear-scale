@@ -60,7 +60,14 @@ class SilvergearScaleUnitSelect(SelectEntity):
         raw = self._coordinator.unit_raw
         if raw is None:
             return None
-        return NOTIFY_UNIT_MAP.get(raw)
+        unit = NOTIFY_UNIT_MAP.get(raw)
+        # NOTIFY_UNIT_MAP conoce más unidades (lb:oz, fl'oz...) de las que
+        # ofrecemos como opción seleccionable; si la báscula está en una de
+        # esas (solo alcanzable con el botón físico), no es una "opción"
+        # válida para este select y HA se quejaría si la devolviéramos tal cual.
+        if unit not in self._attr_options:
+            return None
+        return unit
 
     @property
     def available(self) -> bool:
