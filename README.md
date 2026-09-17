@@ -47,6 +47,12 @@ Copia `custom_components/silvergear_scale/` dentro de tu carpeta
 - Entidad `select` para cambiar la unidad mostrada en la báscula (`g`,
   `ml`, `ml(m)`), usando comandos capturados por HCI snoop en la
   característica `0xFFB1`: funcional.
+- `binary_sensor` de sobrecarga (>5kg): funcional. El byte 2 del paquete
+  (antes tratado como parte fija de la cabecera) es en realidad el tipo
+  de mensaje: `0x01`=peso normal, `0x00`=error/sobrecarga (confirmado con
+  una sola muestra real). El sensor de peso pasa a "no disponible"
+  mientras dure la sobrecarga, ya que el valor que llega en ese tipo de
+  paquete no es un peso fiable.
 - `oz` y `lb(oz)` no se soportan, a propósito (no interesaban para este
   uso; si hicieran falta, se capturarían con el mismo método).
 - Limitación conocida: el estado "actual" de la entidad `select` no se

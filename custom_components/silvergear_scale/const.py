@@ -10,14 +10,23 @@ SERVICE_UUID = "0000ffb0-0000-1000-8000-00805f9b34fb"
 CHAR_NOTIFY_UUID = "0000ffb2-0000-1000-8000-00805f9b34fb"  # NOTIFY, envía el peso
 CHAR_WRITE_UUID = "0000ffb1-0000-1000-8000-00805f9b34fb"  # WRITE, comandos a la báscula
 
-# Formato del paquete de notificación (19 bytes), confirmado con 5 muestras:
-#   byte 0-2:  AC 40 01           -> cabecera fija
+# Formato del paquete de notificación (19 bytes), confirmado con varias
+# muestras (checksum verificado en todas):
+#   byte 0-1:  AC 40              -> cabecera fija
+#   byte 2:    tipo de mensaje (01=peso normal, 00=error/sobrecarga;
+#              confirmado con una sola muestra de sobrecarga, así que
+#              podría haber otros tipos de error con el mismo 00)
 #   byte 3:    unidad (00=g, 10=ml; resto de unidades sin confirmar)
-#   byte 4-6:  peso en miligramos, entero de 24 bits big-endian
+#   byte 4-6:  peso/valor crudo en miligramos, entero de 24 bits big-endian
+#              (en el paquete de error no es un peso fiable: parece el
+#              último crudo del sensor antes de saturar, no el peso real)
 #   byte 7-16: sin uso / ceros
 #   byte 17:   A6, constante en todas las muestras
 #   byte 18:   checksum = (suma de bytes 0-17 + 20) mod 256
-PACKET_HEADER = b"\xac\x40\x01"
+HEADER_PREFIX = b"\xac\x40"
+MSG_TYPE_OFFSET = 2
+MSG_TYPE_WEIGHT = 0x01
+MSG_TYPE_OVERLOAD = 0x00
 WEIGHT_OFFSET = 4
 WEIGHT_LENGTH = 3
 

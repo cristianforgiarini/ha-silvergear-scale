@@ -16,7 +16,10 @@ from .const import (
     CHAR_NOTIFY_UUID,
     CHAR_WRITE_UUID,
     DOMAIN,
-    PACKET_HEADER,
+    HEADER_PREFIX,
+    MSG_TYPE_OFFSET,
+    MSG_TYPE_OVERLOAD,
+    MSG_TYPE_WEIGHT,
     UNIT_WRITE_COMMANDS,
     WEIGHT_LENGTH,
     WEIGHT_OFFSET,
@@ -27,7 +30,7 @@ from .const import (
 # se retrasan o no llegan a disparar.
 _RECONNECT_INTERVAL = timedelta(seconds=30)
 
-PLATFORMS = ["sensor", "select"]
+PLATFORMS = ["sensor", "select", "binary_sensor"]
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -46,6 +49,7 @@ class SilvergearScaleCoordinator:
         self.client: BleakClientWithServiceCache | None = None
         self.weight_grams: float | None = None
         self.unit_raw: int | None = None
+        self.overloaded: bool = False
         self._listeners: list[Callable[[], None]] = []
 
     def add_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
@@ -61,15 +65,39 @@ class SilvergearScaleCoordinator:
             callback()
 
     def _handle_notification(self, _sender, data: bytearray) -> None:
-        if len(data) < WEIGHT_OFFSET + WEIGHT_LENGTH or bytes(data[:3]) != PACKET_HEADER:
+        if len(data) < WEIGHT_OFFSET + WEIGHT_LENGTH or bytes(data[:2]) != HEADER_PREFIX:
             _LOGGER.debug("Paquete inesperado de %s: %s", self.address, data.hex())
             return
 
-        self.unit_raw = data[3]
-        raw_weight_mg = int.from_bytes(
+        msg_type = data[MSG_TYPE_OFFSET]
+        raw_value = int.from_bytes(
             data[WEIGHT_OFFSET : WEIGHT_OFFSET + WEIGHT_LENGTH], byteorder="big"
         )
-        self.weight_grams = raw_weight_mg / 1000
+
+        if msg_type == MSG_TYPE_OVERLOAD:
+            # El valor de peso en este tipo de paquete no es fiable (parece
+            # el último crudo del sensor antes de saturar), así que no
+            # actualizamos weight_grams: se queda "no disponible".
+            self.overloaded = True
+            self.weight_grams = None
+            _LOGGER.debug(
+                "Sobrecarga detectada en %s (crudo=%s)", self.address, raw_value
+            )
+            self._notify_listeners()
+            return
+
+        if msg_type != MSG_TYPE_WEIGHT:
+            _LOGGER.debug(
+                "Tipo de mensaje desconocido (%#x) de %s: %s",
+                msg_type,
+                self.address,
+                data.hex(),
+            )
+            return
+
+        self.overloaded = False
+        self.unit_raw = data[3]
+        self.weight_grams = raw_value / 1000
         self._notify_listeners()
 
     def _handle_disconnect(self, _client: BleakClientWithServiceCache) -> None:
