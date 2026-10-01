@@ -36,10 +36,14 @@ Copia `custom_components/silvergear_scale/` dentro de tu carpeta
 
 - Servicio GATT propietario `0000ffb0-...` (no registrado en el Bluetooth
   SIG).
-- Notificaciones de peso en la característica `0000ffb2-...`.
-- Paquete de 19 bytes: cabecera fija `AC 40 01`, byte 4 = unidad (`00`=g,
-  `10`=ml), bytes 5-7 = peso en miligramos (entero de 24 bits big-endian),
-  byte 19 = checksum `(suma bytes 1-18 + 20) mod 256`.
+- Notificaciones de peso en la característica `0000ffb2-...`, paquete fijo
+  de 19 bytes: cabecera `AC 40`, byte 2 = tipo de mensaje (`01`=peso
+  normal, `00`=formato especial — sobrecarga o unidades compuestas como
+  `lb:oz`), byte 3 = unidad, bytes 4-6 = valor en miligramos (entero de
+  24 bits big-endian), byte 18 = checksum `(suma bytes 0-17 + 20) mod 256`.
+  Detalle completo más abajo, en "Estado".
+- Comandos a la característica `0000ffb1-...` (WRITE) para cambiar de
+  unidad, capturados por HCI snoop de la app Nutridays.
 
 ## Estado
 

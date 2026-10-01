@@ -18,7 +18,7 @@ CHAR_WRITE_UUID = "0000ffb1-0000-1000-8000-00805f9b34fb"  # WRITE, comandos a la
 #              compuesta "lb:oz" también usa 00, probablemente porque
 #              libras+onzas no cabe en un único número continuo).
 #              Para distinguir sobrecarga de lb:oz hay que mirar también
-#              el byte 3 (ver OVERLOAD_UNIT_CODES más abajo).
+#              el byte 3 (ver SPECIAL_NON_OVERLOAD_UNIT_CODES más abajo).
 #   byte 3:    unidad (ver NOTIFY_UNIT_MAP)
 #   byte 4-6:  peso/valor crudo en miligramos, entero de 24 bits big-endian
 #              (con tipo=00 no está claro que este campo sea un peso
@@ -29,11 +29,14 @@ CHAR_WRITE_UUID = "0000ffb1-0000-1000-8000-00805f9b34fb"  # WRITE, comandos a la
 #   byte 17:   A6, constante en todas las muestras
 #   byte 18:   checksum = (suma de bytes 0-17 + 20) mod 256
 HEADER_PREFIX = b"\xac\x40"
+PACKET_LENGTH = 19
 MSG_TYPE_OFFSET = 2
 MSG_TYPE_WEIGHT = 0x01
 MSG_TYPE_SPECIAL = 0x00  # antes llamado "overload"; ver nota arriba
 WEIGHT_OFFSET = 4
 WEIGHT_LENGTH = 3
+CHECKSUM_OFFSET = 18
+CHECKSUM_MODIFIER = 20
 
 # Códigos de unidad (byte 3) con tipo=MSG_TYPE_SPECIAL que NO son
 # sobrecarga, para no dar falsos positivos en el binary_sensor.

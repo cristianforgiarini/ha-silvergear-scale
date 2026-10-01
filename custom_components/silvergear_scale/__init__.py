@@ -15,11 +15,14 @@ from homeassistant.helpers.event import async_track_time_interval
 from .const import (
     CHAR_NOTIFY_UUID,
     CHAR_WRITE_UUID,
+    CHECKSUM_MODIFIER,
+    CHECKSUM_OFFSET,
     DOMAIN,
     HEADER_PREFIX,
     MSG_TYPE_OFFSET,
     MSG_TYPE_SPECIAL,
     MSG_TYPE_WEIGHT,
+    PACKET_LENGTH,
     SPECIAL_NON_OVERLOAD_UNIT_CODES,
     UNIT_WRITE_COMMANDS,
     WEIGHT_LENGTH,
@@ -66,8 +69,19 @@ class SilvergearScaleCoordinator:
             callback()
 
     def _handle_notification(self, _sender, data: bytearray) -> None:
-        if len(data) < WEIGHT_OFFSET + WEIGHT_LENGTH or bytes(data[:2]) != HEADER_PREFIX:
-            _LOGGER.debug("Paquete inesperado de %s: %s", self.address, data.hex())
+        if len(data) != PACKET_LENGTH or bytes(data[:2]) != HEADER_PREFIX:
+            _LOGGER.debug("Paquete con tamaño/cabecera inesperados de %s: %s", self.address, data.hex())
+            return
+
+        expected_checksum = (sum(data[:CHECKSUM_OFFSET]) + CHECKSUM_MODIFIER) % 256
+        if data[CHECKSUM_OFFSET] != expected_checksum:
+            _LOGGER.debug(
+                "Checksum inválido de %s (esperado %#x, recibido %#x): %s",
+                self.address,
+                expected_checksum,
+                data[CHECKSUM_OFFSET],
+                data.hex(),
+            )
             return
 
         msg_type = data[MSG_TYPE_OFFSET]
@@ -120,6 +134,10 @@ class SilvergearScaleCoordinator:
     def _handle_disconnect(self, _client: BleakClientWithServiceCache) -> None:
         _LOGGER.debug("Báscula %s desconectada", self.address)
         self.client = None
+        # Sin esto, las entidades (available = client is not None) no se
+        # refrescaban hasta el siguiente evento — se quedaban "pegadas" al
+        # último estado conocido en vez de pasar a no disponible al momento.
+        self._notify_listeners()
 
     async def async_connect(self) -> bool:
         if self.client is not None and self.client.is_connected:
@@ -142,9 +160,23 @@ class SilvergearScaleCoordinator:
                 self.address,
                 disconnected_callback=self._handle_disconnect,
             )
-            await client.start_notify(CHAR_NOTIFY_UUID, self._handle_notification)
         except Exception as err:  # noqa: BLE001 - queremos capturar cualquier fallo de bleak
             _LOGGER.warning("No se pudo conectar con la báscula %s: %s", self.address, err)
+            return False
+
+        try:
+            await client.start_notify(CHAR_NOTIFY_UUID, self._handle_notification)
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning(
+                "Conectado a %s pero falló la suscripción a notificaciones: %s. "
+                "Cerrando la conexión parcial.",
+                self.address,
+                err,
+            )
+            try:
+                await client.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
             return False
 
         self.client = client
