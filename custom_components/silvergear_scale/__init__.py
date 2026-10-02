@@ -16,14 +16,14 @@ from .const import (
     CHAR_NOTIFY_UUID,
     CHAR_WRITE_UUID,
     CHECKSUM_MODIFIER,
-    CHECKSUM_OFFSET,
     DOMAIN,
     HEADER_PREFIX,
+    MIN_PACKET_LENGTH,
     MSG_TYPE_OFFSET,
     MSG_TYPE_SPECIAL,
     MSG_TYPE_WEIGHT,
-    PACKET_LENGTH,
     SPECIAL_NON_OVERLOAD_UNIT_CODES,
+    TRAILER_MARKER,
     UNIT_WRITE_COMMANDS,
     WEIGHT_LENGTH,
     WEIGHT_OFFSET,
@@ -69,17 +69,31 @@ class SilvergearScaleCoordinator:
             callback()
 
     def _handle_notification(self, _sender, data: bytearray) -> None:
-        if len(data) != PACKET_LENGTH or bytes(data[:2]) != HEADER_PREFIX:
-            _LOGGER.debug("Paquete con tamaño/cabecera inesperados de %s: %s", self.address, data.hex())
+        if len(data) < MIN_PACKET_LENGTH or bytes(data[:2]) != HEADER_PREFIX:
+            _LOGGER.debug("Paquete demasiado corto o con cabecera inesperada de %s: %s", self.address, data.hex())
             return
 
-        expected_checksum = (sum(data[:CHECKSUM_OFFSET]) + CHECKSUM_MODIFIER) % 256
-        if data[CHECKSUM_OFFSET] != expected_checksum:
+        # El relleno entre el peso y el final del paquete puede variar
+        # (19 bytes vistos por conexión directa, 20 a través del proxy
+        # ESP32), así que el checksum y el marcador se anclan desde el
+        # FINAL del paquete, no desde una posición fija.
+        if data[-2] != TRAILER_MARKER:
+            _LOGGER.debug(
+                "Marcador final inesperado de %s (esperado %#x, recibido %#x): %s",
+                self.address,
+                TRAILER_MARKER,
+                data[-2],
+                data.hex(),
+            )
+            return
+
+        expected_checksum = (sum(data[:-1]) + CHECKSUM_MODIFIER) % 256
+        if data[-1] != expected_checksum:
             _LOGGER.debug(
                 "Checksum inválido de %s (esperado %#x, recibido %#x): %s",
                 self.address,
                 expected_checksum,
-                data[CHECKSUM_OFFSET],
+                data[-1],
                 data.hex(),
             )
             return

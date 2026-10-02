@@ -10,32 +10,41 @@ SERVICE_UUID = "0000ffb0-0000-1000-8000-00805f9b34fb"
 CHAR_NOTIFY_UUID = "0000ffb2-0000-1000-8000-00805f9b34fb"  # NOTIFY, envía el peso
 CHAR_WRITE_UUID = "0000ffb1-0000-1000-8000-00805f9b34fb"  # WRITE, comandos a la báscula
 
-# Formato del paquete de notificación (19 bytes), confirmado con varias
-# muestras (checksum verificado en todas):
-#   byte 0-1:  AC 40              -> cabecera fija
-#   byte 2:    tipo de payload: 01=valor numérico simple; 00=formato
+# Formato del paquete de notificación. Las capturas hechas con nRF Connect
+# (conexión directa móvil-báscula) dieron siempre 19 bytes, pero en
+# producción, a través del proxy ESP32 (báscula -> proxy -> HA), han
+# llegado paquetes de 20 bytes con un byte de relleno extra — incluso con
+# el mismo contenido real por lo demás. No sabemos si lo añade el propio
+# proxy al re-empaquetar la notificación o si la báscula ya mandaba ese
+# byte y nRF Connect lo recortaba al mostrarlo; en cualquier caso, la
+# longitud total NO es fiable como validación y el parseo se ancla por
+# POSICIÓN DESDE EL PRINCIPIO para tipo/unidad/peso (no cambian) y por
+# POSICIÓN DESDE EL FINAL para el marcador y el checksum (si cambian con
+# el relleno):
+#   byte 0-1:        AC 40   -> cabecera fija
+#   byte 2:           tipo de payload: 01=valor numérico simple; 00=formato
 #              especial (NO es exclusivo de sobrecarga: la unidad
 #              compuesta "lb:oz" también usa 00, probablemente porque
 #              libras+onzas no cabe en un único número continuo).
 #              Para distinguir sobrecarga de lb:oz hay que mirar también
 #              el byte 3 (ver SPECIAL_NON_OVERLOAD_UNIT_CODES más abajo).
-#   byte 3:    unidad (ver NOTIFY_UNIT_MAP)
-#   byte 4-6:  peso/valor crudo en miligramos, entero de 24 bits big-endian
-#              (con tipo=00 no está claro que este campo sea un peso
-#              fiable en todos los casos; en la sobrecarga parecía el
-#              último crudo antes de saturar, y en lb:oz podría tener
-#              una estructura distinta ya que no lo hemos investigado)
-#   byte 7-16: sin uso / ceros
-#   byte 17:   A6, constante en todas las muestras
-#   byte 18:   checksum = (suma de bytes 0-17 + 20) mod 256
+#   byte 3:            unidad (ver NOTIFY_UNIT_MAP)
+#   byte 4-6:          peso/valor crudo en miligramos, entero de 24 bits
+#              big-endian (con tipo=00 no está claro que este campo sea
+#              un peso fiable en todos los casos)
+#   byte 7 .. -3:      relleno / sin uso (longitud variable, ver nota arriba)
+#   byte -2 (penúlt.): A6, constante en todas las muestras vistas
+#   byte -1 (último):  checksum = (suma de TODOS los bytes salvo el
+#              último + 20) mod 256 — verificado así en muestras de 19 y
+#              20 bytes por igual
 HEADER_PREFIX = b"\xac\x40"
-PACKET_LENGTH = 19
+MIN_PACKET_LENGTH = 9  # cabecera(2)+tipo(1)+unidad(1)+peso(3)+marcador(1)+checksum(1), como mínimo
 MSG_TYPE_OFFSET = 2
 MSG_TYPE_WEIGHT = 0x01
 MSG_TYPE_SPECIAL = 0x00  # antes llamado "overload"; ver nota arriba
 WEIGHT_OFFSET = 4
 WEIGHT_LENGTH = 3
-CHECKSUM_OFFSET = 18
+TRAILER_MARKER = 0xA6  # penúltimo byte, constante en todas las muestras
 CHECKSUM_MODIFIER = 20
 
 # Códigos de unidad (byte 3) con tipo=MSG_TYPE_SPECIAL que NO son
